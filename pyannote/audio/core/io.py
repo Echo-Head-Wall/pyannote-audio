@@ -33,10 +33,13 @@ import warnings
 from io import IOBase
 from pathlib import Path
 from typing import Mapping, Optional, Text, Tuple, Union
+from dataclasses import dataclass
 
 import numpy as np
+import torch
 import torch.nn.functional as F
 import torchaudio
+from torchcodec.decoders import AudioDecoder
 from pyannote.core import Segment
 from torch import Tensor
 
@@ -55,10 +58,19 @@ integer to load a specific channel: {"audio": "stereo.wav", "channel": 0}
 """
 
 
+@dataclass
+class AudioMetaData:
+    """Audio metadata compatible with torchaudio.AudioMetaData"""
+    sample_rate: int
+    num_frames: int
+    num_channels: int
+    bits_per_sample: int = 16
+    encoding: str = "PCM_S"
+
 def get_torchaudio_info(
     file: AudioFile, backend: str = None
-) -> torchaudio.AudioMetaData:
-    """Protocol preprocessor used to cache output of torchaudio.info
+) -> AudioMetaData:
+    """Protocol preprocessor used to cache audio metadata
 
     This is useful to speed future random access to this file, e.g.
     in dataloaders using Audio.crop a lot....
@@ -67,27 +79,43 @@ def get_torchaudio_info(
     ----------
     file : AudioFile
     backend : str
-        torchaudio backend to use. Defaults to 'soundfile' if available,
-        or the first available backend.
+        Ignored (kept for compatibility)
 
     Returns
     -------
-    info : torchaudio.AudioMetaData
+    info : AudioMetaData
         Audio file metadata
     """
 
-    if not backend:
-        backends = (
-            torchaudio.list_audio_backends()
-        )  # e.g ['ffmpeg', 'soundfile', 'sox']
-        backend = "soundfile" if "soundfile" in backends else backends[0]
-
-    info = torchaudio.info(file["audio"], backend=backend)
-
-    # rewind if needed
-    if isinstance(file["audio"], IOBase):
-        file["audio"].seek(0)
-
+    audio_path = file["audio"]
+    
+    # Use torchcodec for metadata to avoid torchaudio deprecation
+    if isinstance(audio_path, (str, Path)):
+        decoder = AudioDecoder(str(audio_path))
+        metadata = decoder.metadata
+        
+        # Calculate number of frames from duration and sample rate
+        num_frames = int(metadata.duration_seconds_from_header * metadata.sample_rate)
+        
+        info = AudioMetaData(
+            sample_rate=metadata.sample_rate,
+            num_frames=num_frames,
+            num_channels=metadata.num_channels
+        )
+    else:
+        # For file-like objects, we need to use torchaudio as fallback
+        # since torchcodec doesn't support file-like objects yet
+        import torchaudio
+        waveform, sample_rate = torchaudio.load(audio_path)
+        if isinstance(audio_path, IOBase):
+            audio_path.seek(0)  # rewind
+        
+        info = AudioMetaData(
+            sample_rate=sample_rate,
+            num_frames=waveform.shape[1],
+            num_channels=waveform.shape[0]
+        )
+    
     return info
 
 
@@ -206,14 +234,8 @@ class Audio:
         super().__init__()
         self.sample_rate = sample_rate
         self.mono = mono
-
-        if not backend:
-            backends = (
-                torchaudio.list_audio_backends()
-            )  # e.g ['ffmpeg', 'soundfile', 'sox']
-            backend = "soundfile" if "soundfile" in backends else backends[0]
-
-        self.backend = backend
+        # Ignore backend parameter, we'll use torchcodec
+        self.backend = "torchcodec"
 
     def downmix_and_resample(self, waveform: Tensor, sample_rate: int) -> Tensor:
         """Downmix and resample
@@ -322,11 +344,21 @@ class Audio:
             sample_rate = file["sample_rate"]
 
         elif "audio" in file:
-            waveform, sample_rate = torchaudio.load(file["audio"], backend=self.backend)
-
-            # rewind if needed
-            if isinstance(file["audio"], IOBase):
-                file["audio"].seek(0)
+            # Use torchcodec to avoid torchaudio.load deprecation
+            audio_path = file["audio"]
+            
+            if isinstance(audio_path, (str, Path)):
+                decoder = AudioDecoder(str(audio_path))
+                audio_samples = decoder.get_all_samples()
+                waveform = audio_samples.data  # Already in (channel, time) format
+                sample_rate = audio_samples.sample_rate
+            else:
+                # For file-like objects, fall back to torchaudio for now
+                # torchcodec doesn't support file-like objects yet
+                import torchaudio
+                waveform, sample_rate = torchaudio.load(audio_path)
+                if isinstance(audio_path, IOBase):
+                    audio_path.seek(0)
 
         channel = file.get("channel", None)
 
@@ -430,23 +462,38 @@ class Audio:
             data = file["waveform"][:, start_frame:end_frame]
 
         else:
+            audio_path = file["audio"]
             try:
-                data, _ = torchaudio.load(
-                    file["audio"],
-                    frame_offset=start_frame,
-                    num_frames=num_frames,
-                    backend=self.backend,
-                )
-                # rewind if needed
-                if isinstance(file["audio"], IOBase):
-                    file["audio"].seek(0)
-            except RuntimeError:
-                if isinstance(file["audio"], IOBase):
-                    msg = "torchaudio failed to seek-and-read in file-like object."
+                if isinstance(audio_path, (str, Path)):
+                    # Use torchcodec for file paths
+                    decoder = AudioDecoder(str(audio_path))
+                    
+                    # Convert frame indices to time
+                    sample_rate = decoder.metadata.sample_rate
+                    start_seconds = start_frame / sample_rate
+                    stop_seconds = end_frame / sample_rate
+                    
+                    # Get the audio segment
+                    audio_samples = decoder.get_samples_played_in_range(
+                        start_seconds=start_seconds,
+                        stop_seconds=stop_seconds
+                    )
+                    data = audio_samples.data
+                else:
+                    # For file-like objects, fall back to reading all and slicing
+                    import torchaudio
+                    waveform, _ = torchaudio.load(audio_path)
+                    if isinstance(audio_path, IOBase):
+                        audio_path.seek(0)
+                    data = waveform[:, start_frame:end_frame]
+                    
+            except (RuntimeError, ValueError) as e:
+                if isinstance(audio_path, IOBase):
+                    msg = "torchcodec failed to seek-and-read in file-like object."
                     raise RuntimeError(msg)
 
                 msg = (
-                    f"torchaudio failed to seek-and-read in {file['audio']}: "
+                    f"torchcodec failed to seek-and-read in {audio_path}: "
                     f"loading the whole file instead."
                 )
 

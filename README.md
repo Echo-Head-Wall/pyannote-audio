@@ -11,7 +11,9 @@ Consider switching to [pyannoteAI](https://www.pyannote.ai) for better and faste
 
 ## TL;DR
 
-1. Install [`pyannote.audio`](https://github.com/pyannote/pyannote-audio) with `pip install pyannote.audio`
+**Note:** `pyannote.audio` requires Python 3.13 or later.
+
+1. Install [`pyannote.audio`](https://github.com/pyannote/pyannote-audio) with `pip install pyannote.audio` (or use `uv add pyannote-audio` if using uv)
 2. Accept [`pyannote/segmentation-3.0`](https://hf.co/pyannote/segmentation-3.0) user conditions
 3. Accept [`pyannote/speaker-diarization-3.1`](https://hf.co/pyannote/speaker-diarization-3.1) user conditions
 4. Create access token at [`hf.co/settings/tokens`](https://hf.co/settings/tokens).
@@ -121,8 +123,17 @@ If you use `pyannote.audio` please use the following citations:
 
 ## Development
 
-The commands below will setup pre-commit hooks and packages needed for developing the `pyannote.audio` library.
+`pyannote.audio` uses [uv](https://github.com/astral-sh/uv) for dependency management and requires Python 3.13+.
 
+The commands below will setup pre-commit hooks and packages needed for developing the `pyannote.audio` library:
+
+### Using uv (recommended):
+```bash
+uv sync --all-extras
+uv run pre-commit install
+```
+
+### Using pip:
 ```bash
 pip install -e .[dev,testing]
 pre-commit install
@@ -130,6 +141,12 @@ pre-commit install
 
 ## Test
 
+### Using uv:
+```bash
+uv run pytest
+```
+
+### Using pip:
 ```bash
 pytest
 ```

@@ -41,7 +41,6 @@ with open(version_path, mode="w", encoding="utf-8") as f:
 if __name__ == "__main__":
     setup(
         name="pyannote.audio",
-        namespace_packages=["pyannote"],
         version=version,
         packages=find_packages(),
         install_requires=requirements,
@@ -56,9 +55,8 @@ if __name__ == "__main__":
             "Intended Audience :: Science/Research",
             "License :: OSI Approved :: MIT License",
             "Natural Language :: English",
-            "Programming Language :: Python :: 3.9",
-            "Programming Language :: Python :: 3.10",
-            "Programming Language :: Python :: 3.11",
+            "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3.13",
             "Topic :: Scientific/Engineering",
         ],
     )

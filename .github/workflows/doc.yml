@@ -10,19 +10,20 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        python-version: ["3.9"]
+        python-version: ["3.13"]
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+    - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
       with:
-        python-version: ${{ matrix.python-version }}
+        version: "latest"
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
     - name: Install
       run: |
-        python -m pip install --upgrade pip
-        pip install .
-        pip install -r doc/requirements.txt
+        uv sync
+        uv pip install -r doc/requirements.txt
     - name: Build documentation
       run: |
         make --directory=doc html

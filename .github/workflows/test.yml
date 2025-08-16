@@ -13,13 +13,15 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.13"]
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
         with:
-          python-version: ${{ matrix.python-version }}
+          version: "latest"
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
       - name: Install libsndfile
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -27,7 +29,8 @@ jobs:
           sudo apt-get install libsndfile1
       - name: Install pyannote.audio
         run: |
-          pip install -e .[dev,testing]
+          uv sync --all-extras
+          uv pip install -e .
       - name: Test with pytest
         run: |
-          pytest -k "not test_cli.py"
+          uv run pytest -k "not test_cli.py"

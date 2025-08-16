@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyannote-audio"
+dynamic = ["version"]
+description = "Neural building blocks for speaker diarization"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Hervé Bredin", email = "herve.bredin@irit.fr"},
+]
+requires-python = ">=3.13"
+dependencies = [
+    "asteroid-filterbanks>=0.4",
+    "einops>=0.6.0",
+    "huggingface_hub>=0.13.0",
+    "lightning>=2.0.1",
+    "omegaconf>=2.1,<3.0",
+    "pyannote.core>=5.0.0",
+    "pyannote.database>=5.0.1",
+    "pyannote.metrics>=3.2",
+    "pyannote.pipeline>=3.0.1",
+    "pytorch_metric_learning>=2.1.0",
+    "rich>=12.0.0",
+    "semver>=3.0.0",
+    "soundfile>=0.12.1",
+    "speechbrain>=1.0.0",
+    "tensorboardX>=2.6",
+    "torch>=2.0.0",
+    "torch_audiomentations>=0.11.0",
+    "torchaudio>=2.2.0",
+    "torchcodec>=0.6.0",
+    "torchmetrics>=0.11.0",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/pyannote/pyannote-audio"
+Documentation = "https://github.com/pyannote/pyannote-audio"
+Repository = "https://github.com/pyannote/pyannote-audio"
+Issues = "https://github.com/pyannote/pyannote-audio/issues"
+
+[project.optional-dependencies]
+cli = [
+    "hydra-core>=1.1,<1.2",
+    "typer>=0.4.0,<0.5.0",
+]
+separation = [
+    "transformers>=4.39.1",
+    "asteroid>=0.7.0",
+]
+dev = [
+    "pre-commit>=2.7",
+    "black>=22.3.0",
+    "ruff>=0.1.0",
+]
+test = [
+    "pytest>=6.0",
+    "pytest-cov>=2.10",
+    "jupyter",
+    "papermill",
+]
+
+[project.scripts]
+pyannote-audio-train = "pyannote.audio.cli.train:train"
+pyannote-audio-eval = "pyannote.audio.cli.evaluate:evaluate"
+
+[tool.setuptools]
+packages = ["pyannote", "pyannote.audio"]
+
+[tool.setuptools.dynamic]
+version = {file = "version.txt"}
+
+[tool.setuptools.package-data]
+"pyannote.audio" = ["**/*.yaml", "**/*.yml"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long
+    "B008",  # do not perform function calls in argument defaults
+    "B024",  # abstract class without abstract methods
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["E402", "F401"]
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = [
+    "--cov=pyannote",
+    "--cov-report=term-missing",
+    "--verbose",
+]
+
+[tool.coverage.run]
+source = ["pyannote"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "except ImportError:",
+]
